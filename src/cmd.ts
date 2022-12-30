@@ -165,6 +165,7 @@ program
 	.description("Clear the cache of downloaded-and-rejected torrents")
 	.action(async () => {
 		await db("decision").del();
+		await db.destroy();
 	});
 
 program
@@ -236,6 +237,29 @@ createCommandWithSharedOptions("daemon", "Start the cross-seed daemon")
 			await db.destroy();
 		}
 	});
+
+createCommandWithSharedOptions("web", "Run as a web app").action(
+	async (options) => {
+		try {
+			const runtimeConfig = processOptions(options);
+			setRuntimeConfig(runtimeConfig);
+			initializeLogger();
+			initializePushNotifier();
+			logger.verbose({
+				label: Label.CONFIGDUMP,
+				message: inspect(runtimeConfig),
+			});
+
+			await db.migrate.latest();
+			await doStartupValidation();
+
+			await db.destroy();
+		} catch (e) {
+			exitOnCrossSeedErrors(e);
+			await db.destroy();
+		}
+	}
+);
 
 createCommandWithSharedOptions("rss", "Run an rss scan").action(
 	async (options) => {
