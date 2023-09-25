@@ -7,6 +7,7 @@ import {
 	ActionResult,
 	Decision,
 	InjectionResult,
+	PrefilterResult,
 	SaveResult,
 } from "./constants.js";
 import {
@@ -21,7 +22,12 @@ import {
 	updateSearchTimestamps,
 } from "./indexers.js";
 import { Label, logger } from "./logger.js";
-import { filterByContent, filterDupes, filterTimestamps } from "./preFilter.js";
+import {
+	filterAllByContent,
+	filterByContent,
+	filterDupes,
+	filterTimestamps,
+} from "./preFilter.js";
 import { sendResultsNotification } from "./pushNotifier.js";
 import { getRuntimeConfig } from "./runtimeConfig.js";
 import {
@@ -190,7 +196,8 @@ export async function searchForLocalTorrentByCriteria(
 	const hashesToExclude = await getInfoHashesToExclude();
 	let matches = 0;
 	for (let i = 0; i < searchees.length; i++) {
-		if (!filterByContent(searchees[i])) return null;
+		if (filterByContent(searchees[i]) !== PrefilterResult.INCLUDED)
+			return null;
 		const foundOnOtherSites = await findOnOtherSites(
 			searchees[i],
 			hashesToExclude
@@ -213,7 +220,7 @@ export async function checkNewCandidateMatch(
 	}
 
 	const hashesToExclude = await getInfoHashesToExclude();
-	if (!filterByContent(meta)) return false;
+	if (filterByContent(meta) !== PrefilterResult.INCLUDED) return false;
 	const searchee = createSearcheeFromMetafile(meta);
 
 	// make sure searchee is in database
@@ -275,10 +282,9 @@ async function findSearchableTorrents() {
 	}
 
 	const hashesToExclude = allSearchees.map((t) => t.infoHash).filter(Boolean);
-	let filteredTorrents = await filterAsync(
-		filterDupes(allSearchees).filter(filterByContent),
-		filterTimestamps
-	);
+	let filteredTorrents = filterDupes(allSearchees);
+	filteredTorrents = filterAllByContent(filteredTorrents);
+	filteredTorrents = await filterAsync(filteredTorrents, filterTimestamps);
 
 	logger.info({
 		label: Label.SEARCH,

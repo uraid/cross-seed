@@ -1,46 +1,97 @@
 import ms from "ms";
-import { extname } from "path";
-import { EP_REGEX, SEASON_REGEX, VIDEO_EXTENSIONS } from "./constants.js";
+import path, { extname } from "path";
+import {
+	EP_REGEX,
+	PrefilterResult,
+	SEASON_REGEX,
+	VIDEO_EXTENSIONS,
+} from "./constants.js";
 import { db } from "./db.js";
 import { getEnabledIndexers } from "./indexers.js";
 import { Label, logger } from "./logger.js";
 import { getRuntimeConfig } from "./runtimeConfig.js";
 import { Searchee } from "./searchee.js";
 import { humanReadable, nMsAgo } from "./utils.js";
-import path from "path";
 
-export function filterByContent(searchee: Searchee): boolean {
-	const { includeEpisodes, includeNonVideos, includeSingleEpisodes } = getRuntimeConfig();
+function logReason(name: string, reason: string): void {
+	logger.verbose({
+		label: Label.PREFILTER,
+		message: `Torrent ${name} was not selected for searching because ${reason}`,
+	});
+}
 
-	function logReason(reason): void {
-		logger.verbose({
-			label: Label.PREFILTER,
-			message: `Torrent ${searchee.name} was not selected for searching because ${reason}`,
-		});
-	}
+export function filterByContent(searchee: Searchee): PrefilterResult {
+	const { includeEpisodes, includeNonVideos, includeSingleEpisodes } =
+		getRuntimeConfig();
 
-	const isSingleEpisodeTorrent = searchee.files.length === 1 && EP_REGEX.test(searchee.name); 
-	const isSeasonPackEpisode = searchee.path && searchee.files.length === 1 && SEASON_REGEX.test(path.basename(path.dirname(searchee.path)));
+	const isSingleEpisodeTorrent =
+		searchee.files.length === 1 && EP_REGEX.test(searchee.name);
+	const isSeasonPackEpisode =
+		searchee.path &&
+		searchee.files.length === 1 &&
+		SEASON_REGEX.test(path.basename(path.dirname(searchee.path)));
 
-	if (!includeEpisodes && !includeSingleEpisodes && isSingleEpisodeTorrent && !isSeasonPackEpisode) {
-		logReason("it is a single episode");
-		return false;
+	if (
+		!includeEpisodes &&
+		!includeSingleEpisodes &&
+		isSingleEpisodeTorrent &&
+		!isSeasonPackEpisode
+	) {
+		return PrefilterResult.EXCLUDED_SINGLE_EPISODE;
 	}
 
 	if (includeSingleEpisodes && isSeasonPackEpisode) {
-		logReason("it is a season pack episode");
-		return false;
+		return PrefilterResult.EXCLUDED_SEASON_PACK_EPISODE;
 	}
 	const allFilesAreVideos = searchee.files.every((file) =>
 		VIDEO_EXTENSIONS.includes(extname(file.name))
 	);
 
 	if (!includeNonVideos && !allFilesAreVideos) {
-		logReason("not all files are videos");
-		return false;
+		return PrefilterResult.EXCLUDED_NON_VIDEOS;
 	}
 
-	return true;
+	return PrefilterResult.INCLUDED;
+}
+
+export function filterAllByContent(searchees: Searchee[]): Searchee[] {
+	const output: Searchee[] = [];
+	const tally = {
+		[PrefilterResult.EXCLUDED_NON_VIDEOS]: 0,
+		[PrefilterResult.EXCLUDED_SINGLE_EPISODE]: 0,
+		[PrefilterResult.EXCLUDED_SEASON_PACK_EPISODE]: 0,
+	};
+
+	const reasons = {
+		[PrefilterResult.EXCLUDED_NON_VIDEOS]: "not all files are videos",
+		[PrefilterResult.EXCLUDED_SINGLE_EPISODE]: "it is a single episode",
+		[PrefilterResult.EXCLUDED_SEASON_PACK_EPISODE]:
+			"it is a season pack episode",
+	} as const;
+
+	function logExclusionsOfType(prefilterResult: PrefilterResult): void {
+		const count = tally[prefilterResult];
+		if (count > 0) {
+			logger.info({
+				label: Label.PREFILTER,
+				message: `Excluded ${count} torrents with reason: ${reasons[prefilterResult]}`,
+			});
+		}
+	}
+
+	for (const searchee of searchees) {
+		const prefilterResult = filterByContent(searchee);
+		if (prefilterResult === PrefilterResult.INCLUDED) {
+			output.push(searchee);
+		} else {
+			logReason(searchee.name, reasons[prefilterResult]);
+			tally[prefilterResult]++;
+		}
+	}
+	logExclusionsOfType(PrefilterResult.EXCLUDED_SINGLE_EPISODE);
+	logExclusionsOfType(PrefilterResult.EXCLUDED_SEASON_PACK_EPISODE);
+	logExclusionsOfType(PrefilterResult.EXCLUDED_NON_VIDEOS);
+	return output;
 }
 
 export function filterDupes(searchees: Searchee[]): Searchee[] {
@@ -75,9 +126,7 @@ export async function filterTimestamps(searchee: Searchee): Promise<boolean> {
 			"timestamp.indexer_id": "indexer.id",
 			"timestamp.searchee_id": "searchee.id",
 		})
-		.where("searchee.name",
-		searchee.name
-		)
+		.where("searchee.name", searchee.name)
 		.whereIn(
 			"indexer.id",
 			enabledIndexers.map((i) => i.id)

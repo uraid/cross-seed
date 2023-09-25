@@ -6,7 +6,8 @@ export const PROGRAM_NAME = packageDotJson.name;
 export const PROGRAM_VERSION = packageDotJson.version;
 export const USER_AGENT = `CrossSeed/${PROGRAM_VERSION}`;
 
-export const EP_REGEX = /^(?<title>.+?)[\s._](?<season>S\d+)?[_.\s]?(?<episode>E\d+(?:[-\s]?E?\d+)?)/i;
+export const EP_REGEX =
+	/^(?<title>.+?)[\s._](?<season>S\d+)?[_.\s]?(?<episode>E\d+(?:[-\s]?E?\d+)?)/i;
 export const SEASON_REGEX =
 	/^(?<title>.+?)[_.\s](?<season>S\d+)(?:[.\-\s]*?(?<seasonmax>S?\d+))?(?=[_.\s](?!E\d+))/i;
 export const MOVIE_REGEX =
@@ -45,6 +46,13 @@ export enum Decision {
 	RATE_LIMITED = "RATE_LIMITED",
 	INFO_HASH_ALREADY_EXISTS = "INFO_HASH_ALREADY_EXISTS",
 	FILE_TREE_MISMATCH = "FILE_TREE_MISMATCH",
+}
+
+export enum PrefilterResult {
+	INCLUDED = "INCLUDED",
+	EXCLUDED_SINGLE_EPISODE = "EXCLUDED_SINGLE_EPISODE",
+	EXCLUDED_SEASON_PACK_EPISODE = "EXCLUDED_SEASON_PACK_EPISODE",
+	EXCLUDED_NON_VIDEOS = "EXCLUDED_NON_VIDEOS",
 }
 
 export enum MatchMode {
