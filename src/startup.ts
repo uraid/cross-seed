@@ -3,7 +3,7 @@ import { MatchMode } from "./constants.js";
 import { CrossSeedError } from "./errors.js";
 import { logger } from "./logger.js";
 import { getRuntimeConfig } from "./runtimeConfig.js";
-import { validateTorrentDir } from "./torrent.js";
+import { validateTorrentDir, validateAction } from "./torrent.js";
 import { validateTorznabUrls } from "./torznab.js";
 
 function validateOptions() {
@@ -43,6 +43,7 @@ export async function doStartupValidation(): Promise<void> {
 	const downloadClient = getClient();
 	await Promise.all<void>(
 		[
+			validateAction(),
 			validateTorznabUrls(),
 			downloadClient?.validateConfig(),
 			validateTorrentDir(),

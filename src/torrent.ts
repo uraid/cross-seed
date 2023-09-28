@@ -173,6 +173,15 @@ export async function getInfoHashesToExclude(): Promise<string[]> {
 	);
 }
 
+export async function validateAction(): Promise<void> {
+	const { action } = getRuntimeConfig();
+	if (action.toLowerCase() !== "save" && action.toLowerCase() !== "inject") {
+		throw new CrossSeedError(
+			`Action method \"${action}\" is invalid. Allowed choices are \"save\" and \"inject\".`
+		);
+	}
+}
+
 export async function validateTorrentDir(): Promise<void> {
 	const { torrentDir } = getRuntimeConfig();
 	try {
@@ -206,19 +215,17 @@ export async function getTorrentByFuzzyName(
 	name: string
 ): Promise<null | Metafile> {
 	const allNames = await db("torrent").select("name", "file_path");
-	const fullMatch = reformatTitleForSearching(name).replace(
-		/[^a-z0-9]/gi,
-		""
-	).toLowerCase();
+	const fullMatch = reformatTitleForSearching(name)
+		.replace(/[^a-z0-9]/gi, "")
+		.toLowerCase();
 
 	// Attempt to filter torrents in DB to match incoming torrent before fuzzy check
 	let filteredNames = [];
 	if (fullMatch) {
 		filteredNames = allNames.filter((dbName) => {
-			const dbMatch = reformatTitleForSearching(dbName.name).replace(
-				/[^a-z0-9]/gi,
-				""
-			).toLowerCase();
+			const dbMatch = reformatTitleForSearching(dbName.name)
+				.replace(/[^a-z0-9]/gi, "")
+				.toLowerCase();
 			if (!dbMatch) return false;
 			return fullMatch === dbMatch;
 		});
@@ -226,7 +233,7 @@ export async function getTorrentByFuzzyName(
 
 	// If none match, proceed with fuzzy name check on all names.
 	filteredNames = filteredNames.length > 0 ? filteredNames : allNames;
-	
+
 	// @ts-expect-error fuse types are confused
 	const potentialMatches = new Fuse(filteredNames, {
 		keys: ["name"],
