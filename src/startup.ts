@@ -12,6 +12,7 @@ function validateOptions() {
 		rtorrentRpcUrl,
 		qbittorrentUrl,
 		transmissionRpcUrl,
+		delugeWebUrl,
 		dataDirs,
 		linkDir,
 		matchMode,
@@ -19,15 +20,20 @@ function validateOptions() {
 	} = getRuntimeConfig();
 	if (
 		action === "inject" &&
-		!(rtorrentRpcUrl || qbittorrentUrl || transmissionRpcUrl)
+		!(
+			rtorrentRpcUrl ||
+			qbittorrentUrl ||
+			transmissionRpcUrl ||
+			delugeWebUrl
+		)
 	) {
 		throw new CrossSeedError(
-			"You need to specify --rtorrent-rpc-url, --transmission-rpc-url, or --qbittorrent-url when using '-A inject'."
+			"You need to specify --rtorrent-rpc-url, --transmission-rpc-url, --qbittorrent-url, or --deluge-web-url when using '-A inject'."
 		);
 	}
 	if ((dataDirs && !linkDir) || (!dataDirs && linkDir)) {
 		throw new CrossSeedError(
-			"Data based matching requries both --link-dir and --data-dirs"
+			"Data based matching requires both --link-dir and --data-dirs"
 		);
 	}
 	if (matchMode == MatchMode.RISKY && skipRecheck) {
